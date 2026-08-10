@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AUTO-CAPTURE // Classroom Randomizer</title>
+<style>
+/* ============================================================
+   1. CONFIGURATION / DESIGN TOKENS
+   ============================================================ */
+:root{
+  --bg-void: #05070f;
+  --grid-line: rgba(80, 200, 255, 0.05);
+  --neon-cyan: #4ff2ff;
+  --neon-magenta: #ff4fd8;
+  --neon-amber: #ffcf4f;
+  --neon-lime: #a6ff4f;
+  --neon-violet: #b18aff;
+  --text-dim: #7d8bb0;
+  --text-bright: #eaf3ff;
+  --font-display: 'Orbitron', 'Segoe UI', sans-serif;
+  --font-body: 'Rajdhani', 'Segoe UI', sans-serif;
+}
+
+*{ box-sizing: border-box; }
+
+html,body{
+  margin:0; padding:0;
+  width:100%; height:100%;
+  background: var(--bg-void);
+  color: var(--text-bright);
+  font-family: var(--font-body), sans-serif;
+  overflow: hidden;
+}
+
+body{
+  background-image:
+    radial-gradient(circle at 20% 15%, rgba(79,242,255,0.06), transparent 40%),
+    radial-gradient(circle at 85% 85%, rgba(255,79,216,0.07), transparent 45%),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: auto, auto, 44px 44px, 44px 44px;
+}
+
+/* ============================================================
+   8. UI SHELL
+   ============================================================ */
+#app{ position: relative; width: 100vw; height: 100vh; display: flex; flex-direction: column; }
+
+header{ display:flex; align-items:center; justify-content:space-between; padding: 8px 22px; z-index: 20; flex: 0 0 auto; }
+.brand{ display:flex; align-items:baseline; gap:8px; }
+.brand .mark{ font-family: var(--font-display); font-size: 0.95rem; letter-spacing: 0.14em; color: var(--neon-cyan); text-shadow: 0 0 10px rgba(79,242,255,0.55); }
+.brand .sub{ font-size: 0.62rem; color: var(--text-dim); letter-spacing: 0.18em; text-transform: uppercase; }
+
+.status-cluster{ display:flex; align-items:center; gap: 16px; }
+.stat{ text-align:right; }
+.stat .num{ font-family: var(--font-display); font-size: 1.05rem; color: var(--neon-amber); text-shadow: 0 0 8px rgba(255,207,79,0.5); line-height:1; }
+.stat .lbl{ font-size: 0.55rem; color: var(--text-dim); letter-spacing: 0.14em; text-transform: uppercase; }
+
+main{
+  position: relative; flex: 1; margin: 4px 12px; border-radius: 14px;
+  border: 1px solid rgba(79,242,255,0.16);
+  background: radial-gradient(circle at 50% 40%, rgba(20,26,48,0.5), rgba(5,7,15,0.92));
+  overflow: hidden; box-shadow: 0 0 70px rgba(79,242,255,0.05) inset;
+}
+#arena{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+.corner{ position:absolute; width:24px; height:24px; border-color: var(--neon-cyan); opacity:0.45; pointer-events:none; z-index:5; }
+.corner.tl{ top:8px; left:8px; border-top:2px solid; border-left:2px solid; }
+.corner.tr{ top:8px; right:8px; border-top:2px solid; border-right:2px solid; }
+.corner.bl{ bottom:8px; left:8px; border-bottom:2px solid; border-left:2px solid; }
+.corner.br{ bottom:8px; right:8px; border-bottom:2px solid; border-right:2px solid; }
+
+#phase-banner{
+  position:absolute; top: 18px; left:50%; transform: translateX(-50%);
+  font-family: var(--font-display); font-size: clamp(0.85rem, 2vw, 1.4rem);
+  letter-spacing: 0.28em; color: var(--neon-cyan); text-shadow: 0 0 18px rgba(79,242,255,0.85);
+  z-index: 22; opacity: 0; transition: opacity 0.25s ease; pointer-events:none; white-space: nowrap;
+}
+#phase-banner.show{ opacity: 1; }
+#phase-banner.lock-color{ color: var(--neon-magenta); text-shadow: 0 0 18px rgba(255,79,216,0.85); }
+#phase-banner.chase-color{ color: var(--neon-violet); text-shadow: 0 0 18px rgba(177,138,255,0.85); }
+
+#lock-label{
+  position:absolute; font-family: var(--font-display); font-size: clamp(0.6rem, 1.3vw, 0.85rem);
+  letter-spacing: 0.16em; color: var(--neon-magenta); text-shadow: 0 0 12px rgba(255,79,216,0.9);
+  background: rgba(5,7,15,0.7); padding: 4px 10px; border: 1px solid rgba(255,79,216,0.5); border-radius: 4px;
+  pointer-events:none; display:none; z-index: 25; white-space:nowrap;
+}
+
+.flash{ position:absolute; inset:0; background: white; opacity:0; pointer-events:none; z-index: 15; }
+.vignette-pulse{ position:absolute; inset:0; pointer-events:none; z-index: 14; box-shadow: inset 0 0 0px rgba(255,79,216,0); transition: box-shadow 0.4s ease; }
+.vignette-pulse.active{ box-shadow: inset 0 0 140px rgba(255,79,216,0.35); }
+
+#winner-overlay{
+  position:absolute; inset:0; display:none; align-items:center; justify-content:center; flex-direction: column;
+  background: rgba(5,7,15,0.78); backdrop-filter: blur(4px); z-index: 30; text-align:center;
+}
+#winner-overlay.show{ display:flex; }
+
+.winner-photo{
+  width: min(38vw, 300px); height:min(38vw, 300px); border-radius: 50%;
+  border: 5px solid var(--neon-lime);
+  box-shadow: 0 0 60px rgba(166,255,79,0.75), 0 0 160px rgba(166,255,79,0.4);
+  display:flex; align-items:center; justify-content:center; overflow:hidden;
+  font-family: var(--font-display); font-size: clamp(2.4rem, 8vw, 5rem);
+  background: linear-gradient(145deg, #182240, #0c1226);
+  background-size: cover; background-position:center; color: var(--neon-lime);
+  margin-bottom: 20px; animation: winnerPop 0.6s cubic-bezier(.2,1.6,.4,1);
+}
+@keyframes winnerPop{
+  0%{ transform: scale(0.15) rotate(-10deg); opacity:0; }
+  55%{ transform: scale(1.15) rotate(3deg); opacity:1; }
+  100%{ transform: scale(1) rotate(0); }
+}
+.winner-tag{ font-family: var(--font-display); font-size: clamp(0.65rem, 1.6vw, 0.95rem); letter-spacing: 0.32em; color: var(--neon-magenta); text-shadow: 0 0 16px rgba(255,79,216,0.75); margin-bottom: 8px; }
+.winner-name{ font-family: var(--font-display); font-size: clamp(1.8rem, 6vw, 3.4rem); letter-spacing: 0.04em; color: var(--text-bright); text-shadow: 0 0 24px rgba(234,243,255,0.5); margin-bottom: 6px; }
+.winner-sub{ font-family: var(--font-display); font-size: clamp(0.7rem, 1.8vw, 1.1rem); letter-spacing: 0.2em; color: var(--neon-lime); text-shadow: 0 0 14px rgba(166,255,79,0.7); }
+
+footer{ display:flex; align-items:center; justify-content:center; gap: 10px; padding: 8px 16px 12px; z-index: 20; flex: 0 0 auto; }
+button{
+  font-family: var(--font-display); font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 9px 16px; background: rgba(11,15,30,0.75); color: var(--text-dim);
+  border: 1px solid rgba(79,242,255,0.22); border-radius: 7px; cursor: pointer; transition: all 0.15s ease; opacity: 0.75;
+}
+button:hover:not(:disabled){ opacity:1; border-color: var(--neon-cyan); box-shadow: 0 0 12px rgba(79,242,255,0.3); }
+button:disabled{ opacity:0.25; cursor:not-allowed; }
+button.primary{ background: linear-gradient(135deg, rgba(79,242,255,0.16), rgba(255,79,216,0.1)); border-color: var(--neon-cyan); color: var(--neon-cyan); opacity:1; }
+button.warn{ border-color: rgba(255,79,216,0.4); color: var(--neon-magenta); }
+#mute-btn{ width: 38px; padding: 9px 0; text-align:center; }
+
+@media (max-width: 700px){
+  .winner-photo{ width: 58vw; height:58vw; }
+  footer{ flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <div class="brand">
+      <span class="mark">CM NEON DROP</span>
+      <span class="sub">// Auto-Capture Randomizer</span>
+    </div>
+    <div class="status-cluster">
+      <div class="stat"><div class="num" id="remaining-num">42</div><div class="lbl">Remaining</div></div>
+      <div class="stat"><div class="num" id="drawn-num">0</div><div class="lbl">Drawn</div></div>
+      <button id="mute-btn" title="Mute sounds">🔊</button>
+    </div>
+  </header>
+
+  <main>
+    <canvas id="arena"></canvas>
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+    <div id="phase-banner">SCANNING...</div>
+    <div id="lock-label">TARGET LOCKED</div>
+    <div class="vignette-pulse" id="vignette"></div>
+    <div class="flash" id="flash"></div>
+
+    <div id="winner-overlay">
+      <div class="winner-tag">TARGET CAPTURED</div>
+      <div class="winner-photo" id="winner-photo">?</div>
+      <div class="winner-name" id="winner-name">NAME</div>
+      <div class="winner-sub">HAS BEEN SELECTED!</div>
+    </div>
+  </main>
+
+  <footer>
+    <button id="btn-start" class="primary">Start</button>
+    <button id="btn-pause" disabled>Pause</button>
+    <button id="btn-next" disabled>Next Draw</button>
+    <button id="btn-reset" class="warn">Reset</button>
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   2. PARTICIPANT DATA
+   Real roster. Photos live in an "images" folder next to this
+   file. The 7 entries with image:"" don't have a photo yet --
+   they'll show as glowing initials until you add one.
+   ============================================================ */
+const participants = [
+  { id:"001", name:"Sitti",             image:"images/sitti.jpg" },
+  { id:"002", name:"Hamida",            image:"images/hamida_.jpg" },
+  { id:"003", name:"Gemma",             image:"images/gemma.jpg" },
+  { id:"004", name:"Zyrah",             image:"images/zyrah.jpg" },
+  { id:"005", name:"Angel Faith",       image:"images/angel_faith.jpg" },
+  { id:"006", name:"Queesi",            image:"images/queesi.jpg" },
+  { id:"007", name:"Dave",              image:"images/dave.jpg" },
+  { id:"008", name:"Thea Pelayo",       image:"images/thea_pelayo_.jpg" },
+  { id:"009", name:"Arlen",             image:"images/arlen.jpg" },
+  { id:"010", name:"Arjay",             image:"images/arjay.jpg" },
+  { id:"011", name:"Chris",             image:"images/Chris_.jpg" },
+  { id:"012", name:"Necan",             image:"images/necan.jpg" },
+  { id:"013", name:"Joris",             image:"images/joris.jpg" },
+  { id:"014", name:"Maliko",            image:"images/maliko.jpg" },
+  { id:"015", name:"Noelene",           image:"images/Noelene_.jpg" },
+  { id:"016", name:"Laoda",             image:"images/laoda.jpg" },
+  { id:"017", name:"Pauja",             image:"images/pauja.jpg" },
+  { id:"018", name:"Julie",             image:"images/julie.jpg" },
+  { id:"019", name:"Darwenna",          image:"images/darwenna.jpg" },
+  { id:"020", name:"Nizham",            image:"images/nizham.jpg" },
+  { id:"021", name:"Jhana",             image:"images/jhana.jpg" },
+  { id:"022", name:"Jenica",            image:"images/jenica.jpg" },
+  { id:"023", name:"Ylarowi",           image:"images/ylarowi.jpg" },
+  { id:"024", name:"Mj",                image:"images/Mj.jpg" },
+  { id:"025", name:"Mark Jay",          image:"images/mark_jay.jpg" },
+  { id:"026", name:"Rosella",           image:"images/rosella.jpg" },
+  { id:"027", name:"Jur",               image:"images/jur.jpg" },
+  { id:"028", name:"Thea",              image:"images/thea.jpg" },
+  { id:"029", name:"Brian",             image:"images/brian.jpg" },
+  { id:"030", name:"Putri",             image:"images/putri.jpg" },
+  { id:"031", name:"Jasmine",           image:"images/jasmine.jpg" },
+  { id:"032", name:"Cathy",             image:"images/cathy.jpg" },
+  { id:"033", name:"Sarifa",            image:"images/sarifa.jpg" },
+  { id:"034", name:"Princess Cherrel",  image:"images/Princess_cherrel_.jpg" },
+  { id:"035", name:"Helmie",            image:"images/helmie.jpg" },
+  // -- 7 open slots: fill in name + image path once you have their photo --
+  { id:"036", name:"Classmate 36", image:"" },
+  { id:"037", name:"Classmate 37", image:"" },
+  { id:"038", name:"Classmate 38", image:"" },
+  { id:"039", name:"Classmate 39", image:"" },
+  { id:"040", name:"Classmate 40", image:"" },
+  { id:"041", name:"Classmate 41", image:"" },
+  { id:"042", name:"Classmate 42", image:"" }
+].map(p => ({ ...p, selected: false, _imgOk: false, _imgEl: null }));
+
+function preloadImages(){
+  participants.forEach(p=>{
+    if(!p.image) return;
+    const img = new Image();
+    img.onload = ()=>{ p._imgOk = true; p._imgEl = img; };
+    img.onerror = ()=>{ p._imgOk = false; };
+    img.src = p.image;
+  });
+}
+preloadImages();
+
+/* ============================================================
+   3. STATE
+   ============================================================ */
+const canvas = document.getElementById('arena');
+const ctx = canvas.getContext('2d');
+const lockLabel = document.getElementById('lock-label');
+const phaseBanner = document.getElementById('phase-banner');
+const flashEl = document.getElementById('flash');
+const vignetteEl = document.getElementById('vignette');
+const winnerOverlay = document.getElementById('winner-overlay');
+const winnerPhotoEl = document.getElementById('winner-photo');
+const winnerNameEl = document.getElementById('winner-name');
+const remainingNumEl = document.getElementById('remaining-num');
+const drawnNumEl = document.getElementById('drawn-num');
+
+const btnStart = document.getElementById('btn-start');
+const btnPause = document.getElementById('btn-pause');
+const btnNext = document.getElementById('btn-next');
+const btnReset = document.getElementById('btn-reset');
+const muteBtn = document.getElementById('mute-btn');
+
+let W = 0, H = 0, DPR = 1;
+let nodes = [];
+let paused = false;
+let phase = "idle"; // idle | chaos | chase | lock | capture | winner
+let scanner = null;
+let particles = [];
+let muted = false;
+let rafId = null;
+let globalSlow = 1;
+
+/* ============================================================
+   AUDIO ENGINE
+   ============================================================ */
+let actx = null;
+function ensureAudio(){ if(!actx){ actx = new (window.AudioContext || window.webkitAudioContext)(); } }
+function beep(freq, dur, type='sine', vol=0.15, delay=0){
+  if(muted) return;
+  ensureAudio();
+  const t0 = actx.currentTime + delay;
+  const osc = actx.createOscillator();
+  const gain = actx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  gain.gain.setValueAtTime(0, t0);
+  gain.gain.linearRampToValueAtTime(vol, t0 + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+  osc.connect(gain).connect(actx.destination);
+  osc.start(t0); osc.stop(t0 + dur + 0.02);
+}
+function sfxSearchBeep(pitchUp){ beep(900 + pitchUp*300, 0.045, 'square', 0.06); }
+function sfxEscape(kind){
+  // distinct little stingers per ability, kept short so they can overlap
+  const map = {
+    DASH:      ()=>beep(1200,0.08,'sawtooth',0.09),
+    REPULSE:   ()=>{ beep(220,0.12,'square',0.1); beep(440,0.1,'square',0.07,0.04); },
+    TELEPORT:  ()=>{ beep(1800,0.05,'sine',0.08); beep(2200,0.05,'sine',0.06,0.05); },
+    SHIELD:    ()=>beep(700,0.15,'triangle',0.09),
+    DODGE:     ()=>beep(1500,0.06,'square',0.07),
+    PHASE:     ()=>beep(1000,0.18,'sine',0.06),
+    GRAVITY:   ()=>{ beep(300,0.1,'sawtooth',0.09); beep(150,0.12,'sawtooth',0.08,0.05); },
+    FREEZE:    ()=>beep(500,0.2,'sine',0.07)
+  };
+  (map[kind]||map.DASH)();
+}
+function sfxTension(level){ beep(200 + level*40, 0.1, 'sawtooth', 0.05 + level*0.01); }
+function sfxLock(){ beep(500, 0.22, 'sawtooth', 0.14); beep(760, 0.22,'sawtooth',0.11,0.06); }
+function sfxCountdown(){ beep(520, 0.09, 'square', 0.13); }
+function sfxCapture(){ beep(150, 0.4, 'sawtooth', 0.2); beep(1100,0.3,'square',0.09,0.06); }
+function sfxWinner(){ [660,880,990,1320,1760].forEach((f,i)=> beep(f, 0.32, 'triangle', 0.14, i*0.08)); }
+
+/* ============================================================
+   4. MOVEMENT ENGINE -- chaotic multi-speed field
+   ============================================================ */
+function resize(){
+  const rect = canvas.parentElement.getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = rect.width; H = rect.height;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  canvas.style.width = W + "px"; canvas.style.height = H + "px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize);
+
+const ABILITIES = ["DASH","REPULSE","TELEPORT","SHIELD","DODGE","PHASE","GRAVITY","FREEZE"];
+const ABILITY_COLOR = {
+  DASH: "#4ff2ff", REPULSE: "#ffcf4f", TELEPORT: "#b18aff", SHIELD: "#a6ff4f",
+  DODGE: "#ff4fd8", PHASE: "#7d8bb0", GRAVITY: "#ff9a4f", FREEZE: "#4fd8ff"
+};
+
+function initNodes(){
+  const eligible = participants.filter(p=>!p.selected);
+  const radius = Math.max(22, Math.min(40, 520 / Math.sqrt(eligible.length || 1)));
+  nodes = eligible.map(p=>{
+    const speedClass = 0.6 + Math.random()*1.4;
+    return {
+      p, r: radius,
+      x: Math.random()*(W-2*radius)+radius,
+      y: Math.random()*(H-2*radius)+radius,
+      vx: (Math.random()*2-1) * speedClass,
+      vy: (Math.random()*2-1) * speedClass,
+      speedClass,
+      hue: Math.floor(Math.random()*360),
+      rot: (Math.random()*2-1) * 0.15,
+      rotSpeed: (Math.random()*2-1) * 0.01,
+      depth: 0.75 + Math.random()*0.5,
+      turnTimer: Math.random()*90,
+      accelTimer: Math.random()*200,
+      ability: ABILITIES[Math.floor(Math.random()*ABILITIES.length)],
+      alpha: 1,
+      shieldUntil: 0,
+      freezeUntil: 0,
+      boostUntil: 0,
+      boostVx: 0, boostVy: 0,
+      trail: [],
+      trailing: false,
+      glitchUntil: 0
+    };
+  });
+}
+
+function stepNodes(nowMs){
+  for(const n of nodes){
+    n.turnTimer -= 1;
+    n.accelTimer -= 1;
+
+    if(n.turnTimer <= 0){
+      n.vx += (Math.random()*2-1)*0.5;
+      n.vy += (Math.random()*2-1)*0.5;
+      n.turnTimer = 40 + Math.random()*100;
+    }
+    if(n.accelTimer <= 0){
+      const burst = 1.6 + Math.random()*1.2;
+      n.vx *= burst; n.vy *= burst;
+      n.accelTimer = 140 + Math.random()*220;
+    }
+
+    const maxSpeed = 2.6 * n.speedClass, minSpeed = 0.4 * n.speedClass;
+    const speed = Math.hypot(n.vx,n.vy);
+    if(speed > maxSpeed){ n.vx = n.vx/speed*maxSpeed; n.vy = n.vy/speed*maxSpeed; }
+    if(speed < minSpeed && speed > 0){ n.vx = n.vx/speed*minSpeed; n.vy = n.vy/speed*minSpeed; }
+
+    let vx = n.vx, vy = n.vy;
+    const frozen = n.freezeUntil > nowMs;
+    n.trailing = n.boostUntil > nowMs;
+    if(n.trailing){ vx += n.boostVx; vy += n.boostVy; }
+    if(frozen){ vx = 0; vy = 0; }
+
+    n.x += vx * globalSlow;
+    n.y += vy * globalSlow;
+    n.rot += n.rotSpeed * globalSlow;
+
+    if(n.trailing || n.glitchUntil > nowMs){
+      n.trail.push({x:n.x, y:n.y});
+      if(n.trail.length > 9) n.trail.shift();
+    } else if(n.trail.length){
+      n.trail.shift();
+    }
+
+    if(n.x - n.r < 0){ n.x = n.r; n.vx *= -1; }
+    if(n.x + n.r > W){ n.x = W-n.r; n.vx *= -1; }
+    if(n.y - n.r < 0){ n.y = n.r; n.vy *= -1; }
+    if(n.y + n.r > H){ n.y = H-n.r; n.vy *= -1; }
+  }
+  for(let i=0;i<nodes.length;i++){
+    for(let j=i+1;j<nodes.length;j++){
+      const a = nodes[i], b = nodes[j];
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const dist = Math.hypot(dx,dy);
+      const minDist = a.r + b.r;
+      if(dist > 0 && dist < minDist){
+        const overlap = (minDist-dist)/2;
+        const nx = dx/dist, ny = dy/dist;
+        a.x -= nx*overlap*0.5; a.y -= ny*overlap*0.5;
+        b.x += nx*overlap*0.5; b.y += ny*overlap*0.5;
+      }
+    }
+  }
+}
+
+function initials(name){ return name.split(" ").map(s=>s[0]).join("").slice(0,2).toUpperCase(); }
+
+function drawTrail(n){
+  if(n.trail.length < 2) return;
+  ctx.save();
+  for(let i=1;i<n.trail.length;i++){
+    const a = n.trail[i-1], b = n.trail[i];
+    const t = i / n.trail.length;
+    ctx.globalAlpha = t * 0.35;
+    ctx.strokeStyle = `hsla(${n.hue}, 90%, 70%, 1)`;
+    ctx.lineWidth = n.r * 0.55 * t;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawPortrait(n, glowColor, glowStrength, nowMs){
+  drawTrail(n);
+  ctx.save();
+  ctx.globalAlpha = n.alpha;
+  ctx.translate(n.x, n.y);
+  ctx.rotate(n.rot);
+  ctx.scale(n.depth, n.depth);
+
+  if(glowColor){
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0,0,n.r+6,0,Math.PI*2);
+    ctx.strokeStyle = glowColor;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = glowColor;
+    ctx.shadowBlur = glowStrength;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.beginPath();
+  ctx.arc(0,0,n.r,0,Math.PI*2);
+  ctx.closePath();
+  ctx.save();
+  ctx.clip();
+  if(n.p._imgOk && n.p._imgEl){
+    ctx.drawImage(n.p._imgEl, -n.r, -n.r, n.r*2, n.r*2);
+  } else {
+    const grad = ctx.createLinearGradient(-n.r,-n.r,n.r,n.r);
+    grad.addColorStop(0, `hsl(${n.hue}, 70%, 22%)`);
+    grad.addColorStop(1, `hsl(${(n.hue+40)%360}, 70%, 12%)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(-n.r,-n.r,n.r*2,n.r*2);
+    ctx.fillStyle = "rgba(234,243,255,0.9)";
+    ctx.font = `600 ${Math.floor(n.r*0.62)}px 'Orbitron', sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(initials(n.p.name), 0, 1);
+  }
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(0,0,n.r,0,Math.PI*2);
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = `hsla(${n.hue}, 90%, 65%, 0.4)`;
+  ctx.stroke();
+
+  // shield: pulsing translucent energy bubble
+  if(n.shieldUntil > nowMs){
+    const life = n.shieldUntil - nowMs;
+    const pulse = 1 + Math.sin(nowMs*0.02)*0.06;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0,0,(n.r+11)*pulse,0,Math.PI*2);
+    const bubbleGrad = ctx.createRadialGradient(0,0,n.r*0.6,0,0,(n.r+11)*pulse);
+    bubbleGrad.addColorStop(0, "rgba(166,255,79,0.0)");
+    bubbleGrad.addColorStop(1, `rgba(166,255,79,${Math.min(0.45, life/700)})`);
+    ctx.fillStyle = bubbleGrad;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(166,255,79,0.9)";
+    ctx.lineWidth = 2;
+    ctx.shadowColor = "rgba(166,255,79,0.9)";
+    ctx.shadowBlur = 16;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+function drawNodes(nowMs){
+  ctx.clearRect(0,0,W,H);
+  for(const n of nodes){
+    let glow = null, strength = 0;
+    if(scanner && (phase === "lock" || phase === "capture") && scanner.targetNode === n){
+      // ONLY reveal the winner once the real capture sequence begins
+      glow = "rgba(255,79,216,0.95)"; strength = 22;
+    } else if(scanner && phase === "chase" && scanner.encounterNode === n){
+      // this fires identically for decoys AND the winner's near-miss teases --
+      // it marks "whoever the scanner is near right now", never "the winner"
+      glow = "rgba(79,242,255,0.6)"; strength = 14;
+    }
+    drawPortrait(n, glow, strength, nowMs);
+  }
+  if(scanner) drawScanner();
+  drawParticles();
+}
+
+function drawScanner(){
+  ctx.save();
+  ctx.translate(scanner.x, scanner.y);
+  const pulse = 1 + Math.sin(scanner.t*0.22)*0.1;
+  const size = scanner.size * pulse;
+  const col = (phase === "lock" || phase === "capture") ? "rgba(255,79,216,0.95)" : "rgba(79,242,255,0.85)";
+
+  ctx.strokeStyle = col; ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.arc(0,0,size,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0,0,size*0.55,0,Math.PI*2); ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(-size-16,0); ctx.lineTo(-size+6,0);
+  ctx.moveTo(size-6,0); ctx.lineTo(size+16,0);
+  ctx.moveTo(0,-size-16); ctx.lineTo(0,-size+6);
+  ctx.moveTo(0,size-6); ctx.lineTo(0,size+16);
+  ctx.stroke();
+
+  if(scanner.beam > 0){
+    ctx.save();
+    ctx.globalAlpha = scanner.beam;
+    const grad = ctx.createLinearGradient(0, -H, 0, 0);
+    grad.addColorStop(0, "rgba(166,255,79,0.0)");
+    grad.addColorStop(1, "rgba(166,255,79,0.6)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(-size*0.6, 0); ctx.lineTo(size*0.6, 0);
+    ctx.lineTo(size*1.6, -H); ctx.lineTo(-size*1.6, -H);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function spawnParticles(x,y,color,count){
+  for(let i=0;i<count;i++){
+    const ang = Math.random()*Math.PI*2;
+    const spd = 1.5 + Math.random()*4;
+    particles.push({ x,y, vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd, life: 40+Math.random()*20, maxLife: 60, color });
+  }
+}
+function stepParticles(){
+  particles = particles.filter(pt=>{
+    pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.03; pt.life -= 1;
+    return pt.life > 0;
+  });
+}
+function drawParticles(){
+  for(const pt of particles){
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, pt.life/pt.maxLife);
+    ctx.fillStyle = pt.color;
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.6, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+/* expanding ring particle burst -- used for repulsion pulses and shield deflects */
+function spawnRing(x,y,color,count,speed){
+  for(let i=0;i<count;i++){
+    const ang = (i/count) * Math.PI*2;
+    particles.push({ x,y, vx: Math.cos(ang)*speed, vy: Math.sin(ang)*speed, life: 26, maxLife: 26, color });
+  }
+}
+
+/* ============================================================
+   5. RANDOM SELECTION ENGINE
+   Winner is fixed here, before the chase sequence begins.
+   ============================================================ */
+function pickWinner(){
+  const eligible = participants.filter(p=>!p.selected);
+  if(eligible.length === 0) return null;
+  return eligible[Math.floor(Math.random() * eligible.length)];
+}
+
+/* ============================================================
+   6 & applying an ability's VISUAL effect only (never changes
+   who wins -- purely movement/opacity/position flourishes)
+   ============================================================ */
+function applyAbilityEffect(n, kind, nowMs){
+  switch(kind){
+    case "DASH": {
+      // sudden streak away from the scanner, trail rendered via n.trail
+      const dx = n.x - scanner.x, dy = n.y - scanner.y;
+      const away = Math.atan2(dy,dx) + (Math.random()*0.6-0.3);
+      n.boostVx = Math.cos(away)*3.4; n.boostVy = Math.sin(away)*3.4;
+      n.boostUntil = nowMs + 280;
+      break;
+    }
+    case "REPULSE": {
+      // energy pulse ring expands outward from the node, then it's shoved back
+      spawnRing(n.x, n.y, "rgba(255,207,79,0.85)", 14, 3.2);
+      const dx = n.x - scanner.x, dy = n.y - scanner.y;
+      const dist = Math.hypot(dx,dy) || 1;
+      n.boostVx = (dx/dist)*3.6; n.boostVy = (dy/dist)*3.6;
+      n.boostUntil = nowMs + 240;
+      break;
+    }
+    case "TELEPORT": {
+      // glitch flicker + particle burst at old spot, warp to a new spot
+      spawnParticles(n.x, n.y, "rgba(177,138,255,0.85)", 16);
+      n.glitchUntil = nowMs + 260;
+      n.alpha = 0.1;
+      const nx = Math.random()*(W-2*n.r)+n.r, ny = Math.random()*(H-2*n.r)+n.r;
+      setTimeout(()=>{
+        n.x = nx; n.y = ny; n.alpha = 1;
+        spawnParticles(nx, ny, "rgba(177,138,255,0.85)", 16);
+      }, 130);
+      break;
+    }
+    case "SHIELD": {
+      // energy bubble appears; scanner "deflects" off it visually
+      n.shieldUntil = nowMs + 550;
+      spawnRing(n.x, n.y, "rgba(166,255,79,0.85)", 10, 2.4);
+      break;
+    }
+    case "DODGE": {
+      const perp = Math.random() < 0.5 ? 1 : -1;
+      const ang = Math.atan2(n.vy, n.vx) + perp*Math.PI/2;
+      n.boostVx = Math.cos(ang)*2.9; n.boostVy = Math.sin(ang)*2.9;
+      n.boostUntil = nowMs + 230;
+      break;
+    }
+    case "PHASE": {
+      n.alpha = 0.3;
+      n.glitchUntil = nowMs + 400;
+      setTimeout(()=>{ n.alpha = 1; }, 400);
+      break;
+    }
+    case "GRAVITY": {
+      // trajectory bends sharply around the scanner instead of just reversing
+      const dx = n.x - scanner.x, dy = n.y - scanner.y;
+      const curveAng = Math.atan2(dy,dx) + Math.PI*0.65;
+      const speed = Math.hypot(n.vx,n.vy) || 1;
+      n.vx = Math.cos(curveAng)*speed*1.4;
+      n.vy = Math.sin(curveAng)*speed*1.4;
+      break;
+    }
+    case "FREEZE": {
+      n.freezeUntil = nowMs + 260;
+      break;
+    }
+  }
+  sfxEscape(kind);
+}
+
+/* ============================================================
+   7. TIMELINE: SCAN -> CHASE (encounters+escapes) -> LOCK -> CAPTURE -> WINNER
+   ============================================================ */
+function setBanner(text, cls){
+  phaseBanner.textContent = text;
+  phaseBanner.classList.add('show');
+  phaseBanner.classList.remove('lock-color','chase-color');
+  if(cls) phaseBanner.classList.add(cls);
+}
+function hideBanner(){ phaseBanner.classList.remove('show'); }
+
+function runDraw(){
+  if(phase !== "chaos") return;
+
+  // --- FAIRNESS: winner decided right now, before any chase visuals run ---
+  const winner = pickWinner();
+  if(!winner){ finishAll(); return; }
+  const targetNode = nodes.find(n => n.p.id === winner.id);
+  if(!targetNode){ finishAll(); return; }
+
+  btnPause.disabled = true; btnNext.disabled = true;
+  scanner = { x: W/2, y: H/2, t: 0, size: 30, beam: 0, targetNode, encounterNode: null };
+
+  phase = "chase";
+  setBanner("SCANNING...");
+  runChaseSequence(targetNode);
+}
+
+/**
+ * Builds a queue of "encounters" the scanner will visit: a handful of
+ * random non-winner nodes (who successfully escape), interspersed with
+ * 1-2 near-misses on the actual winner (who also "escapes" those), and
+ * finally locks onto the winner for the real capture.
+ */
+function runChaseSequence(targetNode){
+  const nonWinners = nodes.filter(n => n !== targetNode);
+  shuffleArray(nonWinners);
+
+  const decoyCount = Math.min(nonWinners.length, 5 + Math.floor(Math.random()*3)); // 5-7 escapes
+  const decoys = nonWinners.slice(0, decoyCount);
+
+  // build encounter order: mostly decoys, with the real target teased twice
+  const queue = [];
+  decoys.forEach((n,i)=>{
+    queue.push({ node: n, escapes: true });
+    if(i === Math.floor(decoyCount*0.4) || i === Math.floor(decoyCount*0.75)){
+      queue.push({ node: targetNode, escapes: true }); // near-miss tease
+    }
+  });
+  queue.push({ node: targetNode, escapes: false }); // final: no escape, gets caught
+
+  let qi = 0;
+  let frame = 0;
+  let encounterStart = 0;
+  let encounterDuration = 0;
+  let approaching = true;
+  let tensionLevel = 0;
+  let lastTensionBeep = 0;
+
+  function nextEncounter(){
+    if(qi >= queue.length){ beginLockPhase(targetNode); return; }
+    const enc = queue[qi];
+    scanner.encounterNode = enc.node;
+    approaching = true;
+    // sequence speeds up as it goes -- shorter approach windows later
+    encounterDuration = Math.max(20, 42 - qi*2);
+    frame = 0;
+    tensionLevel = Math.min(6, Math.floor(qi/2));
+    if(qi > queue.length - 2) setBanner("FINAL LOCK...", "lock-color");
+    else if(qi > 2) setBanner("THEY'RE CLOSING IN...", "chase-color");
+    else setBanner("SCANNING...");
+  }
+  nextEncounter();
+
+  function step(){
+    if(phase !== "chase") return;
+    frame++; scanner.t++;
+    const enc = queue[qi];
+    const node = enc.node;
+
+    // scanner eases toward the current encounter node
+    const homing = Math.min(1, frame/encounterDuration);
+    scanner.x += (node.x - scanner.x) * (0.05 + 0.09*homing);
+    scanner.y += (node.y - scanner.y) * (0.05 + 0.09*homing);
+
+    if(frame - lastTensionBeep > Math.max(6, 16 - tensionLevel*1.5)){
+      sfxSearchBeep(homing);
+      lastTensionBeep = frame;
+    }
+
+    lockLabel.style.display = "none";
+
+    const dist = Math.hypot(node.x-scanner.x, node.y-scanner.y);
+    const nowMs = performance.now();
+
+    if(dist < node.r + scanner.size*0.6 && approaching){
+      approaching = false;
+      if(enc.escapes){
+        applyAbilityEffect(node, node.ability, nowMs);
+        spawnParticles(node.x, node.y, "rgba(79,242,255,0.5)", 8);
+      }
+      // brief pause on contact before moving to next encounter
+      setTimeout(()=>{ qi++; nextEncounter(); }, enc.escapes ? 90 : 0);
+      if(!enc.escapes){ beginLockPhase(targetNode); return; }
+    }
+
+    if(frame >= encounterDuration + 20 && approaching){
+      // safety: if never got close enough, force-advance so pacing stays tight
+      qi++; nextEncounter();
+    }
+
+    if(phase === "chase") rafId = requestAnimationFrame(step);
+  }
+  step();
+}
+
+function shuffleArray(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+}
+
+function beginLockPhase(targetNode){
+  if(phase === "lock") return;
+  phase = "lock";
+  scanner.targetNode = targetNode;
+  scanner.encounterNode = null;
+  setBanner("TARGET LOCKED", "lock-color");
+  lockLabel.style.display = "block";
+  lockLabel.textContent = targetNode.p.name.toUpperCase();
+  sfxLock();
+  globalSlow = 0.3;
+
+  let frames = 0;
+  const duration = 50;
+  let beepStep = 0;
+
+  function step(){
+    if(phase !== "lock") return;
+    frames++; scanner.t++;
+    scanner.x += (scanner.targetNode.x - scanner.x) * 0.4;
+    scanner.y += (scanner.targetNode.y - scanner.y) * 0.4;
+    scanner.size = 30 - (frames/duration)*12;
+
+    lockLabel.style.left = Math.min(W-160, Math.max(4, scanner.x + 34)) + "px";
+    lockLabel.style.top = Math.max(4, scanner.y - 44) + "px";
+
+    const step_ = Math.floor(frames/12);
+    if(step_ > beepStep){ beepStep = step_; sfxCountdown(); }
+
+    if(frames >= duration){ beginCapturePhase(); return; }
+    rafId = requestAnimationFrame(step);
+  }
+  step();
+}
+
+function beginCapturePhase(){
+  phase = "capture";
+  setBanner("CAPTURE!", "lock-color");
+  sfxCapture();
+  screenFlash();
+  vignetteEl.classList.add('active');
+
+  const target = scanner.targetNode;
+  target.vx = 0; target.vy = 0;
+  target.freezeUntil = performance.now() + 5000;
+
+  for(const n of nodes){
+    if(n === target) continue;
+    const dx = n.x - target.x, dy = n.y - target.y;
+    const dist = Math.hypot(dx,dy) || 1;
+    const force = 2.2 + Math.random()*1.4;
+    n.vx += (dx/dist) * force;
+    n.vy += (dy/dist) * force;
+  }
+  spawnParticles(target.x, target.y, "rgba(166,255,79,0.9)", 40);
+
+  let frames = 0;
+  const duration = 34;
+  globalSlow = 0.55;
+
+  function step(){
+    if(phase !== "capture") return;
+    frames++;
+    scanner.beam = Math.min(1, frames/9);
+    scanner.x += (target.x - scanner.x) * 0.4;
+    scanner.y += (target.y - scanner.y) * 0.4;
+
+    target.y -= 3.4;
+    target.x += (scanner.x - target.x) * 0.06;
+    target.depth = Math.min(1.3, target.depth + 0.015);
+
+    stepParticles();
+
+    if(frames >= duration){ showWinner(target.p); return; }
+    rafId = requestAnimationFrame(step);
+  }
+  step();
+}
+
+function screenFlash(){
+  flashEl.style.transition = "none";
+  flashEl.style.opacity = "0.6";
+  requestAnimationFrame(()=>{
+    flashEl.style.transition = "opacity 0.45s ease";
+    flashEl.style.opacity = "0";
+  });
+}
+
+/* ============================================================
+   WINNER REVEAL / RESET / STATE MANAGEMENT
+   ============================================================ */
+function showWinner(winnerParticipant){
+  phase = "winner";
+  hideBanner();
+  lockLabel.style.display = "none";
+  vignetteEl.classList.remove('active');
+  scanner = null;
+  globalSlow = 1;
+
+  winnerParticipant.selected = true;
+
+  winnerPhotoEl.style.backgroundImage = "";
+  winnerPhotoEl.textContent = initials(winnerParticipant.name);
+  if(winnerParticipant._imgOk){
+    winnerPhotoEl.style.backgroundImage = `url(${winnerParticipant.image})`;
+    winnerPhotoEl.textContent = "";
+  }
+  winnerNameEl.textContent = winnerParticipant.name.toUpperCase();
+  winnerOverlay.classList.add('show');
+  sfxWinner();
+
+  updateStats();
+
+  const eligibleLeft = participants.filter(p=>!p.selected).length;
+  btnNext.disabled = eligibleLeft === 0;
+  btnNext.textContent = eligibleLeft === 0 ? "All Drawn" : "Next Draw";
+  btnPause.disabled = true;
+}
+
+function hideWinnerAndContinue(){
+  winnerOverlay.classList.remove('show');
+  particles = [];
+  initNodes();
+  phase = "chaos";
+  btnPause.disabled = false;
+  loop();
+}
+
+function finishAll(){
+  phase = "idle"; hideBanner(); lockLabel.style.display = "none";
+  btnNext.disabled = true; btnPause.disabled = true; btnStart.disabled = true;
+}
+
+function updateStats(){
+  const remaining = participants.filter(p=>!p.selected).length;
+  const drawn = participants.length - remaining;
+  remainingNumEl.textContent = remaining;
+  drawnNumEl.textContent = drawn;
+}
+
+function resetAll(){
+  cancelAnimationFrame(rafId);
+  participants.forEach(p=>p.selected = false);
+  phase = "idle"; scanner = null; paused = false; particles = []; globalSlow = 1;
+  winnerOverlay.classList.remove('show');
+  hideBanner(); lockLabel.style.display = "none";
+  vignetteEl.classList.remove('active');
+  btnStart.disabled = false; btnPause.disabled = true; btnPause.textContent = "Pause";
+  btnNext.disabled = true; btnNext.textContent = "Next Draw";
+  updateStats();
+  initNodes();
+  drawNodes(performance.now());
+}
+
+/* ============================================================
+   MAIN LOOP
+   ============================================================ */
+function loop(){
+  const nowMs = performance.now();
+  if(!paused && phase !== "idle" && phase !== "winner"){
+    stepNodes(nowMs);
+  }
+  drawNodes(nowMs);
+  if(phase !== "idle" && phase !== "winner"){
+    rafId = requestAnimationFrame(loop);
+  }
+}
+
+/* ============================================================
+   CONTROLS WIRING
+   ============================================================ */
+btnStart.addEventListener('click', ()=>{
+  ensureAudio();
+  btnStart.disabled = true; btnPause.disabled = false; btnNext.disabled = true;
+  phase = "chaos";
+  setBanner("SCANNING...");
+  initNodes();
+  loop();
+  setTimeout(()=>{ if(phase==="chaos") runDraw(); }, 1500);
+});
+
+btnPause.addEventListener('click', ()=>{
+  paused = !paused;
+  btnPause.textContent = paused ? "Resume" : "Pause";
+  if(!paused){ loop(); }
+});
+
+btnNext.addEventListener('click', ()=>{
+  hideWinnerAndContinue();
+  setTimeout(()=>{ if(phase==="chaos") runDraw(); }, 1200);
+});
+
+btnReset.addEventListener('click', resetAll);
+
+muteBtn.addEventListener('click', ()=>{
+  muted = !muted;
+  muteBtn.textContent = muted ? "🔇" : "🔊";
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function init(){
+  resize();
+  updateStats();
+  initNodes();
+  drawNodes(performance.now());
+}
+window.addEventListener('load', init);
+window.addEventListener('resize', ()=>{ resize(); if(phase==="idle") drawNodes(performance.now()); });
+</script>
+</body>
+</html>
